@@ -100,6 +100,8 @@ local loadPlayer = 'SELECT `accounts`, `job`, `job_grade`, `gang`, `gang_grade`,
 -- Add ", gang = {}"
 local userData = {accounts = {}, inventory = {}, job = {}, loadout = {}, playerName = GetPlayerName(playerId), weight = 0, gang = {}}
 
+local gang, gangGrade, gangObject, gangGradeObject = result.gang, tostring(result.gang_grade)
+
 -- Add manage gang data to userData
 -- Gang
 if exports['mgd_gangbuilder']:DoesGangExist(gang, gangGrade)then
