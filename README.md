@@ -15,7 +15,4 @@
 - Custom Data set up in ESX PlayerData
 
 ## VIDEO PREVIEW
-[SOON](#)
-
-## SCREENSHOTS PREVIEW
-SOON
+[PREVIEW](https://www.youtube.com/watch?v=jgYIVFZsLFE)
