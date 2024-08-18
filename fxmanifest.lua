@@ -1,5 +1,5 @@
 author 'MGDev - McDo™'
-discord 'https://discord.gg/pDNVUgWt7a'
+discord 'https://discord.com/invite/9t2ZxNkvjq'
 github 'https://github.com/MGDev-McDo'
 tebex 'https://mgdev.tebex.io/'
 
