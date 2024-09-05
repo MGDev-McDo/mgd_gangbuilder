@@ -1,8 +1,10 @@
 ESX.RegisterCommand('mgd:setgang', Config.commandAccess, function(xPlayer, args, showError)
 	local target, gangName, gangGrade = args.playerId, args.gangName, args.gangGrade
-	if ServerGangsData[gangName] then
+    local gangData = GlobalState['mgd_gangbuilder'][gangName]
+	if gangData then
         local found = nil
-        for k,v in pairs(ServerGangsData[gangName].grades) do
+
+        for k,v in pairs(gangData.grades) do
             if v.grade == gangGrade then
                 found = v.label
                 break
@@ -10,14 +12,13 @@ ESX.RegisterCommand('mgd:setgang', Config.commandAccess, function(xPlayer, args,
         end
 
         if found ~= nil then
-            target.setGang(gangName, gangGrade)
-            target.showNotification(_('command_success_setgang_target', ServerGangsData[gangName].label, found))
-            xPlayer.showNotification(_('command_success_setgang_author', target.source, ServerGangsData[gangName].label, found))
+            target.triggerEvent('mgd_gangbuilder:updateClientAfterAction', _('command_success_setgang_target', gangData.label, found), target.gang.name, gangName, gangGrade)
+            xPlayer.triggerEvent('mgd_gangbuilder:notify', _('command_success_setgang_author', target.source, gangData.label, found), 'success')
         else
-            xPlayer.showNotification(_('command_error_gangGrade'))
+            xPlayer.triggerEvent('mgd_gangbuilder:notify', _('command_error_gangGrade', gangGrade, gangName), 'error')
         end
     else
-        xPlayer.showNotification(_('command_error_gangName'))
+        xPlayer.triggerEvent('mgd_gangbuilder:notify', _('command_error_gangName', gangName), 'error')
     end
 end, true, {help = _('command_setGang'), validate = true, arguments = {
 	{name = 'playerId', help = _('command_args_playerId'), type = 'player'},
@@ -29,7 +30,3 @@ ESX.RegisterCommand('mgd:gangmenu', Config.commandAccess, function(xPlayer, args
 	TriggerClientEvent("mgd_gangbuilder:openCreateMenu", xPlayer.source)
 end, true, {help = _('command_gangMenu'), validate = true, arguments = {
 }})
-
-ESX.RegisterCommand('myid', 'user', function(xPlayer, args, showError)
-	xPlayer.showNotification(_('myid', xPlayer.source))
-end, false, {help = _('command_myid')})

@@ -1,79 +1,217 @@
-GangsInfos = {}
-local HasAlreadyEnteredMarker, CurrentAction, CurrentActionMsg, LastZone = false
+local GangPoints, GangMarkers = {}, {}
+local function InitializePoints()
+    while GlobalState['mgd_gangbuilder'] == nil do Citizen.Wait(500) end
 
-Citizen.CreateThread(function()
-    TriggerServerEvent("mgd_gangbuilder:getGangsServerInfos")
-
-    ESX.PlayerData = ESX.GetPlayerData()
-    while ESX.PlayerData.gang == nil do
-        Citizen.Wait(10)
-        ESX.PlayerData = ESX.GetPlayerData()
+    local isOpen, currentText = lib.isTextUIOpen()
+    if isOpen then
+        lib.hideTextUI()
     end
-end)
+
+    for k,v in pairs(GangPoints) do
+        if GangPoints[k] then
+            GangPoints[k].remove(GangPoints[k])
+        end
+    end
+
+    if ESX.PlayerData.gang and ESX.PlayerData.gang.name == 'none' then return end
+
+    local coords = GlobalState['mgd_gangbuilder'][ESX.PlayerData.gang.name].data.coords
+
+    for k,v in pairs(coords) do
+        if k ~= 'garageSpawn' then
+            GangPoints[k] = lib.points.new({
+                coords = vector3(v.x, v.y, v.z),
+                distance = Config.DrawDistance
+            })
+
+            GangMarkers[k] = lib.marker.new({
+                type = Config.Marker[k].type,
+                width = Config.Marker[k].width,
+                height = Config.Marker[k].height,
+                color = Config.Marker[k].color,
+                coords = { x = v.x + Config.Marker[k].adaptCoords.x, y = v.y + Config.Marker[k].adaptCoords.y, z = v.z + Config.Marker[k].adaptCoords.z }
+            })
+        end
+    end
+
+    if ESX.PlayerData.gang.grade_permissions["perm_inventory_view"] then
+        function GangPoints.inventory:nearby()
+            GangMarkers['inventory']:draw()
+
+            if self.currentDistance < (Config.Marker['inventory'].width) then
+                if not lib.isTextUIOpen() then
+                    lib.showTextUI(_('textUI_openInventory'), {
+                        icon = Config.TextUI.icons['inventory'],
+                        style = {
+                            borderRadius = Config.TextUI.borderRadius,
+                            backgroundColor = Config.TextUI.backgroundColor,
+                        }
+                    })
+                end
+    
+                if IsControlJustPressed(0, 51) then
+                    OpenInventoryMenu()
+                end
+            else
+                local isOpen, currentText = lib.isTextUIOpen()
+                if isOpen and currentText == _('textUI_openInventory') then
+                    lib.hideTextUI()
+                end
+            end
+        end
+    end
+    
+    if ESX.PlayerData.gang.grade_permissions["perm_garage_view"] then
+        function GangPoints.garageMenu:nearby()
+            GangMarkers['garageMenu']:draw()
+
+            if self.currentDistance < (Config.Marker['garageMenu'].width) then
+                if not lib.isTextUIOpen() then
+                    lib.showTextUI(_('textUI_openGarageMenu'), {
+                        icon = Config.TextUI.icons['garageMenu'],
+                        style = {
+                            borderRadius = Config.TextUI.borderRadius,
+                            backgroundColor = Config.TextUI.backgroundColor,
+                        }
+                    })
+                end
+    
+                if IsControlJustPressed(0, 51) then
+                    OpenGarageMenu()
+                end
+            else
+                local isOpen, currentText = lib.isTextUIOpen()
+                if isOpen and currentText == _('textUI_openGarageMenu') then
+                    lib.hideTextUI()
+                end
+            end
+        end
+    end
+    
+    if ESX.PlayerData.gang.grade_permissions["perm_garage_store"] then
+        function GangPoints.garageStore:nearby()
+            GangMarkers['garageStore']:draw()
+
+            if (self.currentDistance < Config.Marker['garageStore'].width) and IsPedInAnyVehicle(PlayerPedId(), false) then
+                if not lib.isTextUIOpen() then
+                    lib.showTextUI(_('textUI_openGarageStore'), {
+                        icon = Config.TextUI.icons['garageStore'],
+                        style = {
+                            borderRadius = Config.TextUI.borderRadius,
+                            backgroundColor = Config.TextUI.backgroundColor,
+                        }
+                    })
+                end
+    
+                if IsControlJustPressed(0, 51) then
+                    StoreVehicleInGarage()
+                end
+            else
+                local isOpen, currentText = lib.isTextUIOpen()
+                if isOpen and currentText == _('textUI_openGarageStore') then
+                    lib.hideTextUI()
+                end
+            end
+        end
+    end
+    
+    if ESX.PlayerData.gang.grade_permissions["perm_boss_menu"] then
+        function GangPoints.boss:nearby()
+            GangMarkers['boss']:draw()
+
+            if self.currentDistance < (Config.Marker['boss'].width) then
+                if not lib.isTextUIOpen() then
+                    lib.showTextUI(_('textUI_openBoss'), {
+                        icon = Config.TextUI.icons['boss'],
+                        style = {
+                            borderRadius = Config.TextUI.borderRadius,
+                            backgroundColor = Config.TextUI.backgroundColor,
+                        }
+                    })
+                end
+    
+                if IsControlJustPressed(0, 51) then
+                    OpenBossMenu()
+                end
+            else
+                local isOpen, currentText = lib.isTextUIOpen()
+                if isOpen and currentText == _('textUI_openBoss') then
+                    lib.hideTextUI()
+                end
+            end
+        end
+    end
+end
 
 RegisterNetEvent('esx:playerLoaded')
 AddEventHandler('esx:playerLoaded', function(xPlayer)
 	ESX.PlayerData = xPlayer
 end)
 
-RegisterNetEvent('esx:setGang')
-AddEventHandler('esx:setGang', function(gang)
-    ESX.PlayerData.gang = gang
+RegisterNetEvent('mgd_gangbuilder:setGang')
+AddEventHandler('mgd_gangbuilder:setGang', function(gang)
+	ESX.SetPlayerData('gang', gang)
+    InitializePoints()
 end)
 
-RegisterNetEvent('mgd_gangbuilder:receiveGangsServerInfos')
-AddEventHandler('mgd_gangbuilder:receiveGangsServerInfos', function(data)
-	GangsInfos = data
+AddEventHandler('onResourceStart', function(resourceName)
+	if resourceName ~= GetCurrentResourceName() then return end
+    InitializePoints()
+end)
 
-    Citizen.Wait(50)
-    if ESX.PlayerData.gang and ESX.PlayerData.gang ~= "none" then
-        local thisGang = GangsInfos[ESX.PlayerData.gang.name]
-        local thisGrade = (GangsInfos[ESX.PlayerData.gang.name].grades[ESX.PlayerData.gang.grade_name] or {grade = 0, name = "none", label = "Aucun", permissions = {}})
-        ESX.PlayerData.gang.name = thisGang.name
-        ESX.PlayerData.gang.label = thisGang.label
+RegisterNetEvent('mgd_gangbuilder:updateClientAfterAction')
+AddEventHandler('mgd_gangbuilder:updateClientAfterAction', function(message, gangAffected, newGang, newGrade)
+    if ESX.PlayerData.gang.name == gangAffected then
+        RageUI.CloseAll()
+        TriggerServerEvent('mgd_gangbuilder:setNewGangData', newGang, newGrade)
 
-        ESX.PlayerData.gang.grade = thisGrade.grade
-        ESX.PlayerData.gang.grade_name = thisGrade.name
-        ESX.PlayerData.gang.grade_label = thisGrade.label
-        ESX.PlayerData.gang.grade_permissions = thisGrade.permissions
+        lib.notify({
+            title = _('notify_title_inform'),
+            description = message,
+            type = 'inform',
+            duration = 6000
+        })
     end
 end)
 
-RegisterNetEvent('mgd_gangbuilder:maxRanksResetGrade')
-AddEventHandler('mgd_gangbuilder:maxRanksResetGrade', function(gang)
-    if ESX.PlayerData.gang.name == gang then
-        TriggerServerEvent('mgd_gangbuilder:setNewGangData', gang, 0)
+RegisterNetEvent('mgd_gangbuilder:updateClientAfterActionEdit')
+AddEventHandler('mgd_gangbuilder:updateClientAfterActionEdit', function(message, gangAffected)
+    if ESX.PlayerData.gang.name == gangAffected then
+        RageUI.CloseAll()
+        TriggerServerEvent('mgd_gangbuilder:setNewGangData', ESX.PlayerData.gang.name, ESX.PlayerData.gang.grade)
+
+        lib.notify({
+            title = _('notify_title_inform'),
+            description = message,
+            type = 'inform',
+            duration = 6000
+        })
     end
 end)
 
-RegisterNetEvent('mgd_gangbuilder:deleteCheckToNone')
-AddEventHandler('mgd_gangbuilder:deleteCheckToNone', function(gang)
-    if ESX.PlayerData.gang.name == gang then
-        ESX.PlayerData.gang.name = "none"
-        TriggerServerEvent('mgd_gangbuilder:setNewGangData', "none", 0)
-        ESX.ShowNotification(_('server_deletegang_setnone'))
+RegisterNetEvent('mgd_gangbuilder:updateClientAfterActionWithGrade')
+AddEventHandler('mgd_gangbuilder:updateClientAfterActionWithGrade', function(message, gangAffected, gradeAffected, newGang, newGrade)
+    if ESX.PlayerData.gang.name == gangAffected and ESX.PlayerData.gang.grade_name == gradeAffected then
+        RageUI.CloseAll()
+        TriggerServerEvent('mgd_gangbuilder:setNewGangData', newGang, newGrade)
+
+        lib.notify({
+            title = _('notify_title_inform'),
+            description = message,
+            type = 'inform',
+            duration = 6000
+        })
     end
 end)
 
-RegisterNetEvent('mgd_gangbuilder:checkDeleteGrade')
-AddEventHandler('mgd_gangbuilder:checkDeleteGrade', function(gang, gradeName)
-    if ESX.PlayerData.gang.name == gang and ESX.PlayerData.gang.grade_name == gradeName then
-        TriggerServerEvent('mgd_gangbuilder:setNewGangData', gang, 0)
-    end
-end)
-
-RegisterNetEvent('mgd_gangbuilder:checkRenameGrade')
-AddEventHandler('mgd_gangbuilder:checkRenameGrade', function(gang, gradeName)
-    if ESX.PlayerData.gang.name == gang and ESX.PlayerData.gang.grade_name == gradeName then
-        TriggerServerEvent('mgd_gangbuilder:setNewGangData', gang, ESX.PlayerData.gang.grade)
-    end
-end)
-
-RegisterNetEvent('mgd_gangbuilder:checkEditPermissions')
-AddEventHandler('mgd_gangbuilder:checkEditPermissions', function(gang, gradeName)
-    if ESX.PlayerData.gang.name == gang and ESX.PlayerData.gang.grade_name == gradeName then
-        TriggerServerEvent('mgd_gangbuilder:setNewGangData', gang, ESX.PlayerData.gang.grade)
-    end
+RegisterNetEvent('mgd_gangbuilder:notify')
+AddEventHandler('mgd_gangbuilder:notify', function(msg, msgType)
+	lib.notify({
+        title = _('notify_title_'.. msgType),
+        description = msg,
+        type = msgType,
+        duration = 6000
+    })
 end)
 
 function TextInput(title, inputText, maxLength)
@@ -89,112 +227,4 @@ function TextInput(title, inputText, maxLength)
 	if GetOnscreenKeyboardResult() then
         return GetOnscreenKeyboardResult()
     end
-end
-
--- MARKERS
-Citizen.CreateThread(function()
-    Citizen.Wait(500)
-	while true do
-		Citizen.Wait(0)
-        local ped = PlayerPedId()
-		local playerCoords = GetEntityCoords(ped)
-		local isInMarker, letSleep, currentZone = false, true
-        
-        if ESX.PlayerData.gang and ESX.PlayerData.gang.name ~= "none" then
-            for k,v in pairs(GangsInfos[ESX.PlayerData.gang.name].data.coords) do
-                v.Pos = vec3(v.x, v.y, v.z - 1.0)
-                local distance = #(playerCoords - v.Pos)
-
-                if distance < Config.DrawDistance then
-                    letSleep = false
-
-                    if (k == "inventory" and ESX.PlayerData.gang.grade_permissions["perm_inventory_view"]) then
-                        DrawMarker(1, v.Pos, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2, 1.2, 0.7, 32, 251, 149, 150, false, false, 2, false, nil, nil, false)
-                        if distance < 1.3 then
-                            isInMarker, currentZone = true, k
-                        end
-                    end
-                    if (k == "garageMenu" and ESX.PlayerData.gang.grade_permissions["perm_garage_view"]) then
-                        DrawMarker(1, v.Pos, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2, 1.2, 0.7, 32, 251, 149, 150, false, false, 2, false, nil, nil, false)
-                        if distance < 1.3 then
-                            isInMarker, currentZone = true, k
-                        end
-                    end
-                    if (k == "boss" and ESX.PlayerData.gang.grade_permissions["perm_boss_menu"]) then
-                        DrawMarker(1, v.Pos, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2, 1.2, 0.7, 32, 251, 149, 150, false, false, 2, false, nil, nil, false)
-                        if distance < 1.3 then
-                            isInMarker, currentZone = true, k
-                        end
-                    end
-                    if (k == "garageStore" and ESX.PlayerData.gang.grade_permissions["perm_garage_store"]) and IsPedInAnyVehicle(ped, false) then
-                        DrawMarker(1, v.Pos, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 0.1, 153, 20, 20, 100, false, false, 2, false, nil, nil, false)
-                        if distance < 2.1 then
-                            isInMarker, currentZone = true, k
-                        end
-                    end
-                end
-            end
-
-            if (isInMarker and not HasAlreadyEnteredMarker) or (isInMarker and LastZone ~= currentZone) then
-                HasAlreadyEnteredMarker, LastZone = true, currentZone
-                LastZone = currentZone
-                hasEnteredMarker(currentZone)
-            end
-
-            if not isInMarker and HasAlreadyEnteredMarker then
-                HasAlreadyEnteredMarker = false
-                hasExitedMarker(LastZone)
-            end
-
-            if CurrentAction then
-                ESX.ShowHelpNotification(CurrentActionMsg, true, true, -1)
-
-                if IsControlJustReleased(0, 38) then
-                    if CurrentAction == "inventory" then
-                        TriggerEvent("mgd_gangbuilder:openInventoryMenu")
-                    end
-                    if CurrentAction == "garageMenu" then
-                        TriggerEvent("mgd_gangbuilder:openGarageMenu")
-                    end
-                    if CurrentAction == "boss" then
-                        TriggerEvent("mgd_gangbuilder:openBossMenu")
-                    end
-                    if CurrentAction == "garageStore" then
-                        local vehicle = GetVehiclePedIsIn(ped, false)
-                        local vehiclePlate = GetVehicleNumberPlateText(vehicle)
-                        local vehicleProps = ESX.Game.GetVehicleProperties(vehicle)
-
-                        ESX.TriggerServerCallback("mgd_gangbuilder:storeVehicle", function(success, cbText)
-                            if success then
-                                ESX.Game.DeleteVehicle(vehicle)
-                            
-                                while DoesEntityExist(vehicle) do
-                                    Citizen.Wait(100)
-                                    ESX.Game.DeleteVehicle(vehicle)
-                                end
-                                ESX.ShowNotification(cbText)
-                            else
-                                ESX.ShowNotification(cbText)
-                            end
-                        end, ESX.PlayerData.gang.name, vehicleProps, vehiclePlate)
-                    end
-                end
-            end
-        end
-
-        if letSleep then
-			Citizen.Wait(500)
-            ESX.PlayerData = ESX.GetPlayerData()
-		end
-	end
-end)
-
-function hasEnteredMarker(zone)
-    CurrentAction = zone
-    CurrentActionMsg = _('actionMsg_'.. zone ..'')
-end
-
-function hasExitedMarker(zone)
-	CurrentAction = nil
-    RageUI.CloseAll()
 end

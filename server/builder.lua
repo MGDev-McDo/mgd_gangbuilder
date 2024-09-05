@@ -1,141 +1,141 @@
 ESX.RegisterServerCallback('mgd_gangbuilder:createGang', function(source, cb, CreateGangData)
     local _src = source
-    if ServerGangsData[CreateGangData.name] ~= nil then
-        cb(false, _('server_gangNameAlreadyExist', CreateGangData.name))
-    else
-        local data = { maxRanks = CreateGangData.maxRanks, coords = CreateGangData.coords, garage = {} }
-        MySQL.insert('INSERT INTO `mgdgangbuilder_gangs` (`name`, `label`, `data`) VALUES (?, ?, ?)', {
-            CreateGangData.name,
-            CreateGangData.label,
-            json.encode(data)
-        }, function(rowsChange)
-            if rowsChange then
-                MySQL.insert('INSERT INTO `datastore` (`name`, `label`, `shared`) VALUES (?, ?, ?)', {
-                    "gang_" .. CreateGangData.name,
-                    CreateGangData.label,
-                    1
-                })
-                MySQL.insert('INSERT INTO `datastore_data` (`name`, `data`) VALUES (?, ?)', {
-                    "gang_" .. CreateGangData.name,
-                    json.encode({weapons={}, items={}, accounts={}})
-                })
+    local gangData = json.encode({ maxRanks = CreateGangData.maxRanks, coords = CreateGangData.coords, garage = {} })
+    MySQL.insert('INSERT INTO `mgdgangbuilder_gangs` (`name`, `label`, `data`) VALUES (@name, @label, @data)', {
+        ['@name'] = CreateGangData.name,
+        ['@label'] = CreateGangData.label,
+        ['@data'] = gangData
+    }, function(rowsChange)
+        if rowsChange then
+            local formatedName = "gang_" .. CreateGangData.name
+            local defaultData = json.encode({weapons={}, items={}, accounts={}})
+            MySQL.insert('INSERT INTO `datastore` (`name`, `label`, `shared`) VALUES (@name, @label, 1)', {
+                ['@name'] = formatedName,
+                ['@label'] = CreateGangData.label
+            })
+            MySQL.insert('INSERT INTO `datastore_data` (`name`, `data`) VALUES (@name, @data)', {
+                ['@name'] = formatedName,
+                ['@data'] = defaultData
+            })
 
-                TriggerEvent('mgd_gangbuilderXesx_datastore:createDataStore', "gang_" .. CreateGangData.name, json.encode({weapons={}, items={}, accounts={}}))
+            TriggerEvent('mgd_gangbuilderXesx_datastore:createDataStore', formatedName, defaultData)
 
-                MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)', {
-                    CreateGangData.name,
-                    CreateGangData.maxRanks - 1,
-                    "boss",
-                    "Chef",
-                    json.encode({
-                        perm_inventory_view = true,
-                        perm_inventory_put = true,
-                        perm_inventory_take = true,
-                        perm_garage_view = true,
-                        perm_garage_exit = true,
-                        perm_garage_store = true,
-                        perm_boss_menu = true,
-                        perm_manage_members = true,
-                        perm_manage_permissions = true,
-                        perm_manage_ranks  = true
-                    }),
-                    CreateGangData.name,
-                    0,
-                    "zero",
-                    "Default",
-                    json.encode({
-                        perm_inventory_view = false,
-                        perm_inventory_put = false,
-                        perm_inventory_take = false,
-                        perm_garage_view = false,
-                        perm_garage_exit = false,
-                        perm_garage_store = false,
-                        perm_boss_menu = false,
-                        perm_manage_members = false,
-                        perm_manage_permissions = false,
-                        perm_manage_ranks  = false
-                    })
-                }, function(rowsChangeGrades)
-                    if rowsChangeGrades then
-                        ServerGangsData[CreateGangData.name] = {
-                            name = CreateGangData.name,
-                            label = CreateGangData.label,
-                            data = json.decode(json.encode(data)),
-                            grades = {
-                                zero = {
-                                    grade = 0,
-                                    name = "zero",
-                                    label = "Default",
-                                    permissions = {
-                                        perm_inventory_view = false,
-                                        perm_inventory_put = false,
-                                        perm_inventory_take = false,
-                                        perm_garage_view = false,
-                                        perm_garage_exit = false,
-                                        perm_garage_store = false,
-                                        perm_boss_menu = false,
-                                        perm_manage_members = false,
-                                        perm_manage_permissions = false,
-                                        perm_manage_ranks  = false
-                                    }
-                                },
-                                boss = {
-                                    grade = CreateGangData.maxRanks - 1,
-                                    name = "boss",
-                                    label = "Chef",
-                                    permissions = {
-                                        perm_inventory_view = true,
-                                        perm_inventory_put = true,
-                                        perm_inventory_take = true,
-                                        perm_garage_view = true,
-                                        perm_garage_exit = true,
-                                        perm_garage_store = true,
-                                        perm_boss_menu = true,
-                                        perm_manage_members = true,
-                                        perm_manage_permissions = true,
-                                        perm_manage_ranks  = true
-                                    }
+            MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (@gang_name, @boss_grade, @boss_name, @boss_label, @boss_permissions), (@gang_name, @zero_grade, @zero_name, @zero_label, @zero_permissions)', {
+                ['@gang_name'] = CreateGangData.name,
+                ['@boss_grade'] = CreateGangData.maxRanks - 1,
+                ['@boss_name'] = 'boss',
+                ['@boss_label'] = 'Chef',
+                ['@boss_permissions'] = json.encode({
+                    perm_inventory_view = true,
+                    perm_inventory_put = true,
+                    perm_inventory_take = true,
+                    perm_garage_view = true,
+                    perm_garage_exit = true,
+                    perm_garage_store = true,
+                    perm_boss_menu = true,
+                    perm_manage_members = true,
+                    perm_manage_permissions = true,
+                    perm_manage_ranks  = true
+                }),
+                ['@zero_grade'] = 0,
+                ['@zero_name'] = 'zero',
+                ['@zero_label'] = 'Default',
+                ['@zero_permissions'] = json.encode({
+                    perm_inventory_view = false,
+                    perm_inventory_put = false,
+                    perm_inventory_take = false,
+                    perm_garage_view = false,
+                    perm_garage_exit = false,
+                    perm_garage_store = false,
+                    perm_boss_menu = false,
+                    perm_manage_members = false,
+                    perm_manage_permissions = false,
+                    perm_manage_ranks  = false
+                })
+            }, function(rowsChangeGrades)
+                if rowsChangeGrades then
+                    ServerGangsData[CreateGangData.name] = {
+                        name = CreateGangData.name,
+                        label = CreateGangData.label,
+                        data = json.decode(gangData),
+                        grades = {
+                            zero = {
+                                grade = 0,
+                                name = "zero",
+                                label = "Default",
+                                permissions = {
+                                    perm_inventory_view = false,
+                                    perm_inventory_put = false,
+                                    perm_inventory_take = false,
+                                    perm_garage_view = false,
+                                    perm_garage_exit = false,
+                                    perm_garage_store = false,
+                                    perm_boss_menu = false,
+                                    perm_manage_members = false,
+                                    perm_manage_permissions = false,
+                                    perm_manage_ranks  = false
+                                }
+                            },
+                            boss = {
+                                grade = CreateGangData.maxRanks - 1,
+                                name = "boss",
+                                label = "Chef",
+                                permissions = {
+                                    perm_inventory_view = true,
+                                    perm_inventory_put = true,
+                                    perm_inventory_take = true,
+                                    perm_garage_view = true,
+                                    perm_garage_exit = true,
+                                    perm_garage_store = true,
+                                    perm_boss_menu = true,
+                                    perm_manage_members = true,
+                                    perm_manage_permissions = true,
+                                    perm_manage_ranks  = true
                                 }
                             }
                         }
-                        TriggerEvent('mgd_gangbuilder:dLogs', "ADMIN", {
-                            author = _src,
-                            action = "adminCreate",
-                            data = {
-                                {fieldName = _('createMenu_name'), value = CreateGangData.name},
-                                {fieldName = _('createMenu_label'), value = CreateGangData.label},
-                                {fieldName = _('createMenu_maxRanks'), value = CreateGangData.maxRanks}
-                            }
-                        })
-                        TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                        cb(true, _('server_success_createGang', CreateGangData.label, CreateGangData.name, CreateGangData.maxRanks))
-                    else
-                        cb(true, _('server_error_createGangGrades'))
-                    end
-                end)
-            else
-                cb(false, _('server_error_createGang'))
-            end
-        end)
-    end
+                    }
+
+                    GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                    TriggerEvent('mgd_gangbuilder:dLogs', "ADMIN", {
+                        author = _src,
+                        action = "adminCreate",
+                        data = {
+                            {fieldName = _('createMenu_name'), value = CreateGangData.name},
+                            {fieldName = _('createMenu_label'), value = CreateGangData.label},
+                            {fieldName = _('createMenu_maxRanks'), value = CreateGangData.maxRanks}
+                        }
+                    })
+                    cb(true, _('server_success_createGang', CreateGangData.label, CreateGangData.name, CreateGangData.maxRanks), 'success')
+                else
+                    cb(true, _('server_error_createGangGrades'), 'warning')
+                end
+            end)
+        else
+            cb(false, _('server_error_createGang'), 'error')
+        end
+    end)
 end)
 
 ESX.RegisterServerCallback('mgd_gangbuilder:deleteGang', function(source, cb, gangName)
     local _src = source
-    MySQL.update('DELETE FROM `mgdgangbuilder_gangs` WHERE `name` = ?', {
-        gangName
+    local formatedName = "gang_" .. gangName
+    MySQL.update('DELETE FROM `mgdgangbuilder_gangs` WHERE `name` = @name', {
+        ['@name'] = gangName
     }, function(deleteGangs)
         if deleteGangs then
-            MySQL.update('DELETE FROM `datastore` WHERE `name` = ?', {
-                "gang_"..gangName
+            MySQL.update('DELETE FROM `datastore` WHERE `name` = @name', {
+                ['@name'] = formatedName
             })
-            MySQL.update('DELETE FROM `datastore_data` WHERE `name` = ?', {
-                "gang_"..gangName
+            MySQL.update('DELETE FROM `datastore_data` WHERE `name` = @name', {
+                ['@name'] = formatedName
             })
-            TriggerEvent('mgd_gangbuilderXesx_datastore:deleteDataStore', "gang_" .. gangName)
+
+            TriggerEvent('mgd_gangbuilderXesx_datastore:deleteDataStore', formatedName)
             
-            MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = ?', {
-                gangName
+            MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = @name', {
+                ['@name'] = gangName
             }, function(deleteGangsGrades)
                 if deleteGangsGrades then
                     TriggerEvent('mgd_gangbuilder:dLogs', "ADMIN", {
@@ -146,16 +146,19 @@ ESX.RegisterServerCallback('mgd_gangbuilder:deleteGang', function(source, cb, ga
                             {fieldName = _('createMenu_label'), value = ServerGangsData[gangName].label}
                         }
                     })
-                    cb(true, _('server_success_deleteGang', ServerGangsData[gangName].label, gangName))
+
+                    cb(true, _('server_success_deleteGang', ServerGangsData[gangName].label, gangName), 'success')
+
                     ServerGangsData[gangName] = nil
-                    TriggerClientEvent('mgd_gangbuilder:deleteCheckToNone', -1, gangName)
-                    TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
+                    GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                    TriggerClientEvent('mgd_gangbuilder:updateClientAfterAction', -1, _('server_deletegang_setnone'), gangName, "none", 0)
                 else
-                    cb(true, _('server_error_deleteGangGrades'))
+                    cb(true, _('server_error_deleteGangGrades'), 'warning')
                 end
             end)
         else
-            cb(false, _('server_error_deleteGang'))
+            cb(false, _('server_error_deleteGang'), 'error')
         end
     end)
 end)
@@ -174,12 +177,11 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                 garageSpawn = (newGangData.coords.garageSpawn or oldGangData.data.coords.garageSpawn),
                 garageStore = (newGangData.coords.garageStore or oldGangData.data.coords.garageStore),
                 boss = (newGangData.coords.boss or oldGangData.data.coords.boss)
-            }
+            },
+            garage = oldGangData.data.garage
         },
         grades = oldGangData.grades
     }
-
-    DataCompared.data = json.decode(json.encode(DataCompared.data))
 
     if Config.discordLogs then
         table.insert(DiscordLogs, {fieldName = _('createMenu_name'), value = oldGangData.name})
@@ -192,18 +194,18 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
         if newGangData.coords.boss then table.insert(DiscordLogs, {fieldName = _('createMenu_coords_boss'), value = json.encode(newGangData.coords.boss)}) end
     end
 
-    MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `label` = ?, `data` = ? WHERE `name` = ?', {
-        DataCompared.label,
-        json.encode(DataCompared.data),
-        DataCompared.name
+    MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `label` = @label, `data` = @data WHERE `name` = @name', {
+        ['@label'] = DataCompared.label,
+        ['@data'] = json.encode(DataCompared.data),
+        ['@name'] = DataCompared.name
     }, function(rowsChange)
         if rowsChange then
             if newGangData.maxRanks and newGangData.maxRanks ~= oldGangData.data.maxRanks then
                 if DataCompared.data.maxRanks > oldGangData.data.maxRanks then
-                    MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `grade` = ? WHERE `gang_name` = ? AND `name` = ?', {
-                        DataCompared.data.maxRanks - 1,
-                        DataCompared.name,
-                        "boss"
+                    MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `grade` = @grade WHERE `gang_name` = @gang_name AND `name` = @name', {
+                        ['@grade'] = DataCompared.data.maxRanks - 1,
+                        ['@gang_name'] = DataCompared.name,
+                        ['@name'] = "boss"
                     }, function(rowsChangeGrades)
                         if rowsChangeGrades then
                             TriggerEvent('mgd_gangbuilder:dLogs', "ADMIN", {
@@ -213,23 +215,26 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                             })
                             DataCompared.grades["boss"].grade = DataCompared.data.maxRanks - 1
                             ServerGangsData[DataCompared.name] = DataCompared
-                            TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                            cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name))
+                            
+                            GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                            TriggerClientEvent('mgd_gangbuilder:updateClientAfterActionEdit', -1, _('server_editGang'), DataCompared.name)         
+                            cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name), 'success')
                         else
-                            cb(true, _('server_error_editGangGrades_boss'))
+                            cb(false, _('server_error_editGangGrades_boss'), 'error')
                         end
                     end)
                 else
-                    MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = ?', {
-                        DataCompared.name
+                    MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = @gang_name', {
+                        ['@gang_name'] = DataCompared.name
                     }, function(rowsChange)
                         if rowsChange then
-                            MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)', {
-                                DataCompared.name,
-                                DataCompared.data.maxRanks - 1,
-                                "boss",
-                                "Chef",
-                                json.encode({
+                            MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (@gang_name, @boss_grade, @boss_name, @boss_label, @boss_permissions), (@gang_name, @zero_grade, @zero_name, @zero_label, @zero_permissions)', {
+                                ['@gang_name'] = DataCompared.name,
+                                ['@boss_grade'] = DataCompared.data.maxRanks - 1,
+                                ['@boss_name'] = 'boss',
+                                ['@boss_label'] = 'Chef',
+                                ['@boss_permissions'] = json.encode({
                                     perm_inventory_view = true,
                                     perm_inventory_put = true,
                                     perm_inventory_take = true,
@@ -241,11 +246,10 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                                     perm_manage_permissions = true,
                                     perm_manage_ranks  = true
                                 }),
-                                DataCompared.name,
-                                0,
-                                "zero",
-                                "RESET MAXRANKS",
-                                json.encode({
+                                ['@zero_grade'] = 0,
+                                ['@zero_name'] = 'zero',
+                                ['@zero_label'] = 'Reset MaxRanks',
+                                ['@zero_permissions'] = json.encode({
                                     perm_inventory_view = false,
                                     perm_inventory_put = false,
                                     perm_inventory_take = false,
@@ -280,7 +284,7 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                                         zero = {
                                             grade = 0,
                                             name = "zero",
-                                            label = "RESET MAXRANKS",
+                                            label = "Reset MaxRanks",
                                             permissions = {
                                                 perm_inventory_view = false,
                                                 perm_inventory_put = false,
@@ -300,16 +304,19 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                                         action = "adminEdit",
                                         data = DiscordLogs
                                     })
+
                                     ServerGangsData[DataCompared.name] = DataCompared  
-                                    TriggerClientEvent('mgd_gangbuilder:maxRanksResetGrade', -1, DataCompared.name)         
-                                    TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                                    cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name))
+                                    GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                                    TriggerClientEvent('mgd_gangbuilder:updateClientAfterAction', -1, _('server_editGang_resetRank'), DataCompared.name, DataCompared.name, 0)         
+                                    
+                                    cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name), 'success')
                                 else
-                                    cb(true, _('server_error_editGangGrades', "#2"))
+                                    cb(false, _('server_error_editGangGrades', "#2"), 'error')
                                 end
                             end)
                         else
-                            cb(true, _('server_error_editGangGrades', "#1"))
+                            cb(false, _('server_error_editGangGrades', "#1"), 'error')
                         end
                     end)
                 end
@@ -320,11 +327,14 @@ ESX.RegisterServerCallback('mgd_gangbuilder:editGang', function(source, cb, newG
                     data = DiscordLogs
                 })
                 ServerGangsData[DataCompared.name] = DataCompared
-                TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name))
+                GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                TriggerClientEvent('mgd_gangbuilder:updateClientAfterActionEdit', -1, _('server_editGang'), DataCompared.name)         
+
+                cb(true, _('server_success_editGang', DataCompared.label, DataCompared.name), 'success')
             end
         else
-            cb(false, _('server_error_editGang'))
+            cb(false, _('server_error_editGang'), 'error')
         end
     end)
 end)

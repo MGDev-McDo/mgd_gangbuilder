@@ -1,10 +1,14 @@
-ESX.RegisterServerCallback('mgd_gangbuilder:storeVehicle', function(source, cb, gangName, vehicleProps, vehiclePlate)
+ESX.RegisterServerCallback('mgd_gangbuilder:storeVehicle', function(source, cb, vehicleProps, vehiclePlate, modelLabel)
     local _src = source
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    local gangName = xPlayer.gang.name
 
-    ServerGangsData[gangName].data.garage[vehiclePlate] = vehicleProps
-    MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `data` = ? WHERE `name` = ?', {
-        json.encode(ServerGangsData[gangName].data),
-        gangName
+    ServerGangsData[gangName].data.garage[vehiclePlate] = vehicleProps  
+    GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+    MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `data` = @data WHERE `name` = @name', {
+        ['@data'] = json.encode(GlobalState['mgd_gangbuilder'][gangName].data),
+        ['@name'] = gangName
     }, function(rowsChange)
         if rowsChange then
             TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
@@ -12,24 +16,30 @@ ESX.RegisterServerCallback('mgd_gangbuilder:storeVehicle', function(source, cb, 
                 action = "gangStoreVehicle",
                 data = {
                     {fieldName = "Gang", value = gangName},
-                    {fieldName = "Plaque", value = vehiclePlate}
+                    {fieldName = "Plaque", value = vehiclePlate},
+                    {fieldName = "Modèle", value = modelLabel}
                 }
             })
-            TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-            cb(true, _('success_storeVehicle'))
+
+            cb(true, _('success_storeVehicle', modelLabel, vehiclePlate), 'success')
         else
-            cb(false, _('error_storeVehicle'))
+            cb(false, _('error_storeVehicle'), 'error')
         end
     end)
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:exitVehicle', function(source, cb, gangName, vehiclePlate)
+ESX.RegisterServerCallback('mgd_gangbuilder:exitVehicle', function(source, cb, vehiclePlate)
     local _src = source
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    local gangName = xPlayer.gang.name
+
     if ServerGangsData[gangName].data.garage[vehiclePlate] then
-        ServerGangsData[gangName].data.garage[vehiclePlate] = nil
-        MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `data` = ? WHERE `name` = ?', {
-            json.encode(ServerGangsData[gangName].data),
-            gangName
+        ServerGangsData[gangName].data.garage[vehiclePlate] = nil  
+        GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+        MySQL.update('UPDATE `mgdgangbuilder_gangs` SET `data` = @data WHERE `name` = @name', {
+            ['@data'] = json.encode(GlobalState['mgd_gangbuilder'][gangName].data),
+            ['@name'] = gangName
         }, function(rowsChange)
             if rowsChange then
                 TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
@@ -40,13 +50,12 @@ ESX.RegisterServerCallback('mgd_gangbuilder:exitVehicle', function(source, cb, g
                         {fieldName = "Plaque", value = vehiclePlate}
                     }
                 })
-                TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                cb(true, _('success_exitVehicle'))
+                cb(true, _('success_exitVehicle'), 'success')
             else
-                cb(false, _('error_exitVehicle'))
+                cb(false, _('error_exitVehicle'), 'error')
             end
         end)
     else
-        cb(false, _('error_exitVehicle'))
+        cb(false, _('error_exitVehicle'), 'error')
     end
 end)

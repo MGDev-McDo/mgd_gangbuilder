@@ -9,23 +9,67 @@ function _(str, ...)
 end
 
 Config = {
-	locale = "fr", --| Options : fr
+	locale = "fr", --| Options : fr / en
 
-    commandAccess = "superadmin",
+    commandAccess = "admin",
 
-	DrawDistance = 10.0,
-	Markers = {
-		r = 32,
-		g = 251,
-		b = 149,
-		a = 150
+	DrawDistance = 5.0,
+	Marker = {
+		['inventory'] = {
+			type = 1,
+			color = { r = 32, g = 251, b = 149, a = 150 },
+			width = 1.2,
+			height = 0.5,
+			adaptCoords = vector3(0.0, 0.0, -1.0)
+		},
+		['garageMenu'] = {
+			type = 1,
+			color = { r = 32, g = 251, b = 149, a = 150 },
+			width = 1.2,
+			height = 0.5,
+			adaptCoords = vector3(0.0, 0.0, -1.0)
+		},
+		['garageStore'] = {
+			type = 1,
+			color = { r = 153, g = 20, b = 20, a = 150 },
+			width = 2.0,
+			height = 0.15,
+			adaptCoords = vector3(0.0, 0.0, -1.0)
+		},
+		['boss'] = {
+			type = 1,
+			color = { r = 32, g = 251, b = 149, a = 150 },
+			width = 1.2,
+			height = 0.5,
+			adaptCoords = vector3(0.0, 0.0, -1.0)
+		}
 	},
 
-    discordLogs = true,
+	TextUI = {
+		borderRadius = 2,
+		backgroundColor = '#212529',
+		icons = {
+			['inventory'] = 'box',
+			['garageMenu'] = 'square-parking',
+			['garageStore'] = 'warehouse',
+			['boss'] = 'crown',
+		}
+	},
+
+    discordLogs = false,
 	discordWebhooks = {
 		ADMIN = "https://discord.com/api/webhooks/000000000000000000/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		GANG = "https://discord.com/api/webhooks/000000000000000000/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 	},
+
+	garageUniqueVehicle = false, --| Options : true / false | true for unique vehicles
+	garageVehicleList = { --| If you don't use unique vehicles above
+		`voodoo`, `sanchez`
+	},
+
+	ox_inventory = false, --| Options : true / false
+	ox_inventory_Slots = 100,
+	ox_inventory_MaxWeight = 500000,
 }
 
 -- Don't touch except if you know want you do

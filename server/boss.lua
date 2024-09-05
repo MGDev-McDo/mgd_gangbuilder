@@ -6,7 +6,9 @@ ESX.RegisterServerCallback('mgd_gangbuilder:getFreeGrade', function(source, cb)
     local onesLabel = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"}
     local tensLabel = {"", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"}
     local returnName = ""
-    MySQL.query("SELECT `grade` FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = ? ORDER BY `grade` ASC", {xPlayer.gang.name}, function(result)
+    MySQL.query("SELECT `grade` FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = @gang_name ORDER BY `grade` ASC", {
+        ['@gang_name'] = xPlayer.gang.name
+    }, function(result)
         for i = 1, #result, 1 do
             if result[i].grade == expected then
                 expected = expected + 1
@@ -24,12 +26,12 @@ ESX.RegisterServerCallback('mgd_gangbuilder:getFreeGrade', function(source, cb)
                         returnName = onesLabel[expected + 1]
                     end
                 else
-                    cb(false, _('server_error_createGrade_noFreeID'))
+                    cb(false, _('server_error_createGrade_noFreeID'), 'error')
                 end
             end
         end
 
-        cb(true, "", expected, returnName)
+        cb(true, "", "", expected, returnName)
     end)
 end)
 
@@ -38,12 +40,12 @@ ESX.RegisterServerCallback('mgd_gangbuilder:createGrade', function(source, cb, g
     local xPlayer = ESX.GetPlayerFromId(_src)
     local gangName = xPlayer.gang.name
 
-    MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (?, ?, ?, ?, ?)', {
-        gangName,
-        gradeID,
-        gradeName,
-        gradeLabel,
-        json.encode({
+    MySQL.insert('INSERT INTO `mgdgangbuilder_gangs_grades` (`gang_name`, `grade`, `name`, `label`, `permissions`) VALUES (@gang_name, @grade, @name, @label, @permissions)', {
+        ['@gang_name'] = gangName,
+        ['@grade'] = gradeID,
+        ['@name'] = gradeName,
+        ['@label'] = gradeLabel,
+        ['@permissions'] = json.encode({
             perm_inventory_view = false,
             perm_inventory_put = false,
             perm_inventory_take = false,
@@ -74,6 +76,9 @@ ESX.RegisterServerCallback('mgd_gangbuilder:createGrade', function(source, cb, g
                     perm_manage_ranks  = false
                 }
             }
+
+            GlobalState['mgd_gangbuilder'] = ServerGangsData
+
             TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
                 author = _src,
                 action = "gangCreateGrade",
@@ -83,118 +88,132 @@ ESX.RegisterServerCallback('mgd_gangbuilder:createGrade', function(source, cb, g
                     {fieldName = "Label", value = gradeLabel}
                 }
             })
-            TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-            cb(true, _('server_success_createGrade', gradeLabel))
+
+            cb(true, _('server_success_createGrade', gradeLabel), 'success')
         else
-            cb(false, _('server_error_createGrade'))
+            cb(false, _('server_error_createGrade'), 'error')
         end
     end)
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:deleteGrade', function(source, cb, gangName, gradeName)
+ESX.RegisterServerCallback('mgd_gangbuilder:deleteGrade', function(source, cb, gradeName)
     local _src = source
-    if ServerGangsData[gangName].grades[gradeName] ~= nil then 
-        MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = ? AND `name` = ?', {
-            gangName,
-            gradeName
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    local gangName = xPlayer.gang.name
+    local gradeData = GlobalState['mgd_gangbuilder'][gangName].grades[gradeName]
+    if gradeData ~= nil then 
+        MySQL.update('DELETE FROM `mgdgangbuilder_gangs_grades` WHERE `gang_name` = @gang_name AND `name` = @name', {
+            ['@gang_name'] = gangName,
+            ['@name'] = gradeName
         }, function(rowsChange)
             if rowsChange then
-                local gradeLabel = ServerGangsData[gangName].grades[gradeName].label
-                local gradeID = ServerGangsData[gangName].grades[gradeName].grade
-                ServerGangsData[gangName].grades[gradeName] = nil
                 TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
                     author = _src,
                     action = "gangDeleteGrade",
                     data = {
                         {fieldName = "Gang", value = gangName},
-                        {fieldName = "ID", value = gradeID},
-                        {fieldName = "Label", value = gradeLabel}
+                        {fieldName = "ID", value = gradeData.grade},
+                        {fieldName = "Label", value = gradeData.label}
                     }
                 })
-                TriggerClientEvent('mgd_gangbuilder:checkDeleteGrade', -1, gangName, gradeName)
-                TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                cb(true, _('server_success_deleteGrade', gradeLabel))
+
+                ServerGangsData[gangName].grades[gradeName] = nil
+                GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                TriggerClientEvent('mgd_gangbuilder:updateClientAfterActionWithGrade', -1, _('server_success_deleteGradeCl', gradeData.label), gangName, gradeName, gangName, 0)
+                cb(true, _('server_success_deleteGrade', gradeData.label), 'success')
             else
-                cb(false, _('server_error_deleteGrade'))
+                cb(false, _('server_error_deleteGrade'), 'error')
             end
         end)
     else
-        cb(false, _('server_error_noGradeFound'))
+        cb(false, _('server_error_noGradeFound'), 'error')
     end
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:renameGrade', function(source, cb, gangName, gradeName, newLabel)
+ESX.RegisterServerCallback('mgd_gangbuilder:renameGrade', function(source, cb, gradeName, newLabel)
     local _src = source
-    if ServerGangsData[gangName].grades[gradeName] ~= nil then 
-        MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `label` = ? WHERE `gang_name` = ? AND `name` = ?', {
-            newLabel,
-            gangName,
-            gradeName
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    local gangName = xPlayer.gang.name
+    local gradeData = GlobalState['mgd_gangbuilder'][gangName].grades[gradeName]
+    if gradeData ~= nil then 
+        MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `label` = @label WHERE `gang_name` = @gang_name AND `name` = @name', {
+            ['@label'] = newLabel,
+            ['@gang_name'] = gangName,
+            ['@name'] = gradeName
         }, function(rowsChange)
             if rowsChange then
-                local oldLabel = ServerGangsData[gangName].grades[gradeName].label
-                ServerGangsData[gangName].grades[gradeName].label = newLabel
                 TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
                     author = _src,
                     action = "gangRenameGrade",
                     data = {
                         {fieldName = "Gang", value = gangName},
-                        {fieldName = "ID", value = ServerGangsData[gangName].grades[gradeName].grade},
-                        {fieldName = "Label", value = oldLabel .." → ".. newLabel}
+                        {fieldName = "ID", value = gradeData.grade},
+                        {fieldName = "Label", value = gradeData.label .." → ".. newLabel}
                     }
                 })
-                TriggerClientEvent('mgd_gangbuilder:checkRenameGrade', -1, gangName, gradeName)
-                TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                cb(true, _('server_success_renameGrade', oldLabel, newLabel))
+
+                ServerGangsData[gangName].grades[gradeName].label = newLabel
+                GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                TriggerClientEvent('mgd_gangbuilder:updateClientAfterAction', -1, _('server_success_renameGradeCl', gradeData.label), gangName, gangName, gradeData.grade)
+
+                cb(true, _('server_success_renameGrade', gradeData.label, newLabel), 'success')
             else
-                cb(false, _('server_error_renameGrade'))
+                cb(false, _('server_error_renameGrade'), 'error')
             end
         end)
     else
-        cb(false, _('server_error_noGradeFound'))
+        cb(false, _('server_error_noGradeFound'), 'error')
     end
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:editPermissions', function(source, cb, gangName, gradeName, permissions)
+ESX.RegisterServerCallback('mgd_gangbuilder:editPermissions', function(source, cb, gradeName, permissions)
     local _src = source
-    if ServerGangsData[gangName].grades[gradeName] ~= nil then 
-        MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `permissions` = ? WHERE `gang_name` = ? AND `name` = ?', {
-            json.encode(permissions),
-            gangName,
-            gradeName
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    local gangName = xPlayer.gang.name
+    local gradeData = GlobalState['mgd_gangbuilder'][gangName].grades[gradeName]
+
+    if gradeData ~= nil then 
+        MySQL.update('UPDATE `mgdgangbuilder_gangs_grades` SET `permissions` = @permissions WHERE `gang_name` = @gang_name AND `name` = @name', {
+            ['@permissions'] = json.encode(permissions),
+            ['@gang_name'] = gangName,
+            ['@name'] = gradeName
         }, function(rowsChange)
             if rowsChange then
-                ServerGangsData[gangName].grades[gradeName].permissions = permissions
                 TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
                     author = _src,
                     action = "gangEditPerms",
                     data = {
                         {fieldName = "Gang", value = gangName},
-                        {fieldName = "ID", value = ServerGangsData[gangName].grades[gradeName].grade},
-                        {fieldName = "Label", value = ServerGangsData[gangName].grades[gradeName].label},
+                        {fieldName = "ID", value = gradeData.grade},
+                        {fieldName = "Label", value = gradeData.label},
                         {fieldName = "Permissions", value = json.encode(permissions)}
                     }
                 })
-                TriggerClientEvent('mgd_gangbuilder:checkEditPermissions', -1, gangName, gradeName)
-                TriggerClientEvent('mgd_gangbuilder:receiveGangsServerInfos', -1, ServerGangsData)
-                cb(true, _('server_success_editPermissions', ServerGangsData[gangName].grades[gradeName].label))
+
+                ServerGangsData[gangName].grades[gradeName].permissions = permissions
+                GlobalState['mgd_gangbuilder'] = ServerGangsData
+
+                TriggerClientEvent('mgd_gangbuilder:updateClientAfterActionWithGrade', -1, _('server_success_editPermissionsCl'), gangName, gradeData.grade, gangName, gradeData.grade)
+
+                cb(true, _('server_success_editPermissions', gradeData.label), 'success')
             else
-                cb(false, _('server_error_editPermissions'))
+                cb(false, _('server_error_editPermissions'), 'error')
             end
         end)
     else
-        cb(false, _('server_error_noGradeFound'))
+        cb(false, _('server_error_noGradeFound'), 'error')
     end
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:getMembers', function(source, cb, gangName)
+ESX.RegisterServerCallback('mgd_gangbuilder:getMembers', function(source, cb)
     local _src = source
-    MySQL.query('SELECT `identifier`, `firstname`, `lastname`, `mgdgangbuilder_gangs_grades`.`label` FROM `users` LEFT JOIN `mgdgangbuilder_gangs_grades` ON `gang` = `gang_name` AND `gang_grade` = `grade` WHERE `gang` = ?', {
-        gangName
+    local xPlayer = ESX.GetPlayerFromId(_src)
+    MySQL.query('SELECT `identifier`, `firstname`, `lastname`, `mgdgangbuilder_gangs_grades`.`label` FROM `users` LEFT JOIN `mgdgangbuilder_gangs_grades` ON `gang` = `gang_name` AND `gang_grade` = `grade` WHERE `gang` = @gang', {
+        ['@gang'] = xPlayer.gang.name
     }, function(result)
-        if result[1] then
-            cb(result)
-        end
+        cb(result)
     end)
 end)
 
@@ -204,11 +223,6 @@ ESX.RegisterServerCallback('mgd_gangbuilder:invite', function(source, cb, target
     local TxPlayer = ESX.GetPlayerFromId(target)
 
     if TxPlayer ~= nil then
-        MySQL.update('UPDATE `users` SET `gang` = ?, `gang_grade` = ? WHERE `identifier` = ?', {
-            xPlayer.gang.name,
-            0,
-            TxPlayer.identifier
-        })
         TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
             author = _src,
             action = "gangInvite",
@@ -217,25 +231,26 @@ ESX.RegisterServerCallback('mgd_gangbuilder:invite', function(source, cb, target
                 {fieldName = "Joueur", value = TxPlayer.get('firstName') .." ".. TxPlayer.get('lastName') }
             }
         })
-        TxPlayer.setGang(xPlayer.gang.name, 0)
-        TxPlayer.showNotification(_('server_succes_invite_target', xPlayer.gang.label))
-        cb(true, _('server_succes_invite', target))
+
+        TxPlayer.triggerEvent('mgd_gangbuilder:updateClientAfterAction', _('server_succes_invite_target', xPlayer.gang.label), TxPlayer.gang.name, xPlayer.gang.name, 0)
+
+        cb(true, _('server_succes_invite'), 'success')
     else
-        cb(false, _('server_error_invite_noPlayer'))
+        cb(false, _('server_error_invite_noPlayer'), 'error')
     end
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:fire', function(source, cb, target)
+ESX.RegisterServerCallback('mgd_gangbuilder:fire', function(source, cb, target, identifier)
     local _src = source
     local xPlayer = ESX.GetPlayerFromId(_src)
-    local TxPlayer = ESX.GetPlayerFromIdentifier(target)
+    local TxPlayer
 
-    MySQL.update('UPDATE `users` SET `gang` = ?, `gang_grade` = ? WHERE `identifier` = ?', {
-        "none",
-        0,
-        target
-    })
-    
+    if identifier then
+        TxPlayer = ESX.GetPlayerFromIdentifier(target)
+    else
+        TxPlayer = ESX.GetPlayerFromId(target)
+    end
+
     TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
         author = _src,
         action = "gangFire",
@@ -245,23 +260,27 @@ ESX.RegisterServerCallback('mgd_gangbuilder:fire', function(source, cb, target)
         }
     })
 
-    if TxPlayer ~= nil then
-        TxPlayer.setGang("none", 0)
-        TxPlayer.showNotification(_('server_succes_fire_target', xPlayer.gang.label))
-    end
+    if TxPlayer then
+        if TxPlayer.gang.name == xPlayer.gang.name then
+            TxPlayer.triggerEvent('mgd_gangbuilder:updateClientAfterAction', _('server_succes_fire_target', xPlayer.gang.label), xPlayer.gang.name, 'none', 0)
+            cb(true, _('server_succes_fire'), 'success')
+        else
+            cb(false, _('server_error_fire_notInGang'), 'error')
+        end
+    else
+        MySQL.update('UPDATE `users` SET `gang` = "none", `gang_grade` = 0 WHERE `identifier` = @identifier', {
+            ['@identifier'] = target
+        })
 
-    cb(true, _('server_succes_fire'))
+        cb(true, _('server_succes_fire'), 'success')
+    end
 end)
 
-ESX.RegisterServerCallback('mgd_gangbuilder:changeGrade', function(source, cb, target, gradeID, gradeLabel)
+ESX.RegisterServerCallback('mgd_gangbuilder:changeGrade', function(source, cb, target, gradeID)
     local _src = source
     local xPlayer = ESX.GetPlayerFromId(_src)
     local TxPlayer = ESX.GetPlayerFromIdentifier(target)
-
-    MySQL.update('UPDATE `users` SET `gang_grade` = ? WHERE `identifier` = ?', {
-        gradeID,
-        target
-    })
+    local gradeLabel = GlobalState['mgd_gangbuilder'][xPlayer.gang.name].grades[gradeID].label
     
     TriggerEvent('mgd_gangbuilder:dLogs', "GANG", {
         author = _src,
@@ -273,10 +292,14 @@ ESX.RegisterServerCallback('mgd_gangbuilder:changeGrade', function(source, cb, t
         }
     })
 
-    if TxPlayer ~= nil then
-        TxPlayer.setGang(TxPlayer.gang.name, gradeID)
-        TxPlayer.showNotification(_('server_succes_changeGrade_target', gradeLabel))
+    if TxPlayer then
+        TxPlayer.triggerEvent('mgd_gangbuilder:updateClientAfterAction', _('server_succes_changeGrade_target', gradeLabel), TxPlayer.gang.name, TxPlayer.gang.name, gradeID)
+    else
+        MySQL.update('UPDATE `users` SET `gang_grade` = @gang_grade WHERE `identifier` = @identifier', {
+            ['@gang_grade'] = gradeID,
+            ['@identifier'] = target
+        })
     end
 
-    cb(true, _('server_succes_changeGrade', gradeLabel))
+    cb(true, _('server_succes_changeGrade', gradeLabel), 'success')
 end)
